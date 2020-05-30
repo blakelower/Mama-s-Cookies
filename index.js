@@ -1,15 +1,8 @@
-const express = require('express');
-const server = express();
+require('dotenv').config();
 
-const visitorRoutes = require('./routes/visitor-route');
-const userRoutes = require('./routes/user-routes');
+const server = require('./api/server');
+const PORT = process.env.PORT || 5000
 
-server.use(express.json());
-
-server.use("/api/visitors", visitorRoutes)
-server.use("/api/users", userRoutes)
-
-
-const port = process.env.PORT || 5000;
-
-server.listen(port, () => console.log(`\n Running on port ${port} \n`))
+server.listen(PORT, () => {
+    console.log(`Server is running on ${PORT}`)
+})
