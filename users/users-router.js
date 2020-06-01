@@ -1,14 +1,16 @@
-const router = require('express').Router();
+const express = require("express")
+const Users = require("./users-model")
+const restrict = require("../middleware/restrict")
 
-const Users = require('../users/users-model');
-const restricted = require('../auth/auth-token-valid');
+const router = express.Router()
 
-router.get('/', restricted, (req,res ) => {
-    Users.find()
-    .then(users => {
-        res.json(users)
-    })
-    .catch(err => res.send(err))
+// This endpoint is only available to logged-in users due to the `restrict` middleware
+router.get("/", restrict(), async (req, res, next) => {
+	try {
+		res.json(await Users.find())
+	} catch(err) {
+		next(err)
+	}
 })
 
-module.exports = router;
+module.exports = router

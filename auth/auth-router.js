@@ -1,51 +1,71 @@
-const router = require("express").Router();
-const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const express = require("express")
+const bcrypt = require("bcryptjs")
+const Users = require("../users/users-model")
+const restrict = require("../middleware/restrict")
 
-const Users = require("../users/users-model");
-const { jwtSecret } = require("../config.js/secrets");
+const router = express.Router()
 
-router.post("/register", (req, res) => {
-  let user = req.body;
-  const hash = bcrypt.hashSync(user.password, 20);
-    user.password = hash;
-  Users.add(user)
-    .then((saved) => {
-      res.status(201).json(saved);
-    })
-    .catch((err) => {
-      res.status(500).json({ err });
-    });
-});
+router.post("/register", async (req, res, next) => {
+	try {
+		const { username } = req.body
+		const user = await Users.findBy({ username }).first()
 
-router.post('/login', (req,res) => {
-    let {username, password} = req.body;
+		if (user) {
+			return res.status(409).json({
+				message: "Username is already taken",
+			})
+		}
 
-    Users.findBy({username})
-    .first()
-    .then(user => {
-        if (user && bcrypt.compareSync(password, user.password)){
-            const token = generateToken(user)
-            res.status(201).json({
-                message: `Welcome ${user.username}! Here is your token`
-            })
-        } else {
-            res.status(500).json(err);
-        }
-    })
-    .catch(err => res.status(500).json(err));
+		res.status(201).json(await Users.add(req.body))
+	} catch(err) {
+		next(err)
+	}
 })
 
-function generateToken(user){
-    const payload = {
-        subject: user.id,
-        username: user.username,
-        role: user.role || 'user'
-    }
-    const options = {
-        expiresIn: '2h'
-    } 
-    return jwt.sign(payload, jwtSecret, options)
-}
+router.post("/login", async (req, res, next) => {
+	const authError = {
+		message: "Invalid Credentials",
+	}
 
-module.exports = router;
+	try {
+		const user = await Users.findBy({ username: req.body.username }).first()
+		if (!user) {
+			return res.status(401).json(authError)
+		}
+
+		// since bcrypt hashes generate different results due to the salting,
+		// we rely on the magic internals to compare hashes rather than doing it
+		// manually with "!=="
+		const passwordValid = await bcrypt.compare(req.body.password, user.password)
+		if (!passwordValid) {
+			return res.status(401).json(authError)
+		}
+
+		// creates a new session for the user and saves it in memory.
+		// it's this easy since we're using `express-session`
+		req.session.user = user
+
+		res.json({
+			message: `Welcome ${user.username}!`,
+		})
+	} catch(err) {
+		next(err)
+	}
+})
+
+router.get("/logout", restrict(), (req, res, next) => {
+	// this will delete the session in the database and try to expire the cookie,
+	// though it's ultimately up to the client if they delete the cookie or not.
+	// but it becomes useless to them once the session is deleted server-side.
+	req.session.destroy((err) => {
+		if (err) {
+			next(err)
+		} else {
+			res.json({
+				message: "Logged out",
+			})
+		}
+	})
+})
+
+module.exports = router
