@@ -26,9 +26,19 @@ function findById(id) {
 		.first()
 }
 
+const remove = async id => db('users').where({id}).first().del();
+
+
+const edit = async (id, user) => {
+    await db('users').where({id}).update(user);
+    return findOneBy({id})
+  };
+
 module.exports = {
 	add,
 	find,
 	findBy,
-	findById,
+    findById,
+    remove,
+    edit
 }
